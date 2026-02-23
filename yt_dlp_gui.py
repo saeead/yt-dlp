@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enhanced Tkinter-based GUI for yt-dlp on Windows."""
+"""Modern Tkinter-based GUI for yt-dlp on Windows with light/dark mode."""
 
 from __future__ import annotations
 
@@ -39,17 +39,45 @@ AUDIO_ABR_MAP = {
     'worst': 'worst',
 }
 
+THEMES = {
+    'dark': {
+        'bg': '#0b1020',
+        'panel': '#121a2f',
+        'panel_alt': '#1a2340',
+        'input': '#0f1630',
+        'text': '#e6edf6',
+        'muted': '#8ea0be',
+        'accent': '#5aa9ff',
+        'accent_soft': '#2b4a7f',
+        'success': '#2fb67d',
+        'danger': '#f26d6d',
+    },
+    'light': {
+        'bg': '#eef3fb',
+        'panel': '#f7faff',
+        'panel_alt': '#ffffff',
+        'input': '#ffffff',
+        'text': '#15233a',
+        'muted': '#556987',
+        'accent': '#1f73ff',
+        'accent_soft': '#dce9ff',
+        'success': '#1d9964',
+        'danger': '#d64646',
+    },
+}
+
 
 class YtDlpGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title('yt-dlp Simple GUI')
-        self.root.geometry('980x780')
-        self.root.minsize(820, 600)
+        self.root.title('yt-dlp Studio')
+        self.root.geometry('1140x820')
+        self.root.minsize(980, 680)
 
         self.process: subprocess.Popen[str] | None = None
         self.output_queue: queue.Queue[str] = queue.Queue()
 
+        self.theme_var = tk.StringVar(value='dark')
         self.dest_var = tk.StringVar(value=str(Path.cwd()))
         self.filename_var = tk.StringVar(value='%(title)s.%(ext)s')
         self.format_var = tk.StringVar(value='bestvideo+bestaudio/best')
@@ -68,144 +96,28 @@ class YtDlpGUI:
         self.preset_var = tk.StringVar(value='custom')
         self.status_var = tk.StringVar(value='Ready')
 
+        self.style = ttk.Style(self.root)
+        if 'vista' in self.style.theme_names():
+            self.style.theme_use('vista')
+
         self._build_ui()
         self._load_config()
+        self._apply_theme()
         self.root.after(120, self._poll_output_queue)
 
     def _build_ui(self) -> None:
-        main = ttk.Frame(self.root, padding=12)
-        main.pack(fill='both', expand=True)
-        main.columnconfigure(1, weight=1)
-        main.rowconfigure(14, weight=1)
+        self.main = ttk.Frame(self.root, style='App.TFrame', padding=16)
+        self.main.pack(fill='both', expand=True)
+        self.main.columnconfigure(0, weight=7)
+        self.main.columnconfigure(1, weight=5)
+        self.main.rowconfigure(2, weight=1)
 
-        ttk.Label(main, text='Preset:').grid(row=0, column=0, sticky='w', pady=(0, 6))
-        preset_frame = ttk.Frame(main)
-        preset_frame.grid(row=0, column=1, sticky='ew', pady=(0, 6))
-        preset_frame.columnconfigure(0, weight=1)
-        self.preset_combo = ttk.Combobox(
-            preset_frame,
-            textvariable=self.preset_var,
-            state='readonly',
-            values=['custom', 'best-video', 'audio-mp3', 'subtitles-only', 'thumbnail-only'],
-        )
-        self.preset_combo.grid(row=0, column=0, sticky='ew')
-        self.preset_combo.bind('<<ComboboxSelected>>', self._apply_preset)
-        ttk.Button(preset_frame, text='Save as defaults', command=self._save_config).grid(row=0, column=1, padx=(8, 0))
-
-        ttk.Label(main, text='URLs (one per line):').grid(row=1, column=0, sticky='nw', pady=(0, 6))
-        self.urls_text = tk.Text(main, height=4, wrap='word')
-        self.urls_text.grid(row=1, column=1, sticky='ew', pady=(0, 6))
-        self.urls_text.bind('<KeyRelease>', lambda *_: self.update_preview())
-
-        ttk.Label(main, text='Destination folder:').grid(row=2, column=0, sticky='w', pady=(0, 6))
-        dest_frame = ttk.Frame(main)
-        dest_frame.grid(row=2, column=1, sticky='ew', pady=(0, 6))
-        dest_frame.columnconfigure(0, weight=1)
-        ttk.Entry(dest_frame, textvariable=self.dest_var).grid(row=0, column=0, sticky='ew')
-        ttk.Button(dest_frame, text='Browse', command=self._browse_dest).grid(row=0, column=1, padx=(8, 0))
-
-        ttk.Label(main, text='Filename template (-o):').grid(row=3, column=0, sticky='w', pady=(0, 6))
-        ttk.Entry(main, textvariable=self.filename_var).grid(row=3, column=1, sticky='ew', pady=(0, 6))
-
-        quality_frame = ttk.LabelFrame(main, text='Quality selection', padding=10)
-        quality_frame.grid(row=4, column=0, columnspan=2, sticky='ew', pady=(8, 6))
-        quality_frame.columnconfigure(1, weight=1)
-        quality_frame.columnconfigure(3, weight=1)
-
-        ttk.Label(quality_frame, text='Download mode:').grid(row=0, column=0, sticky='w', pady=2)
-        ttk.Combobox(
-            quality_frame,
-            textvariable=self.media_mode_var,
-            state='readonly',
-            values=['video+audio', 'video-only', 'audio-only'],
-        ).grid(row=0, column=1, sticky='ew', padx=(6, 12), pady=2)
-
-        ttk.Label(quality_frame, text='Video quality:').grid(row=0, column=2, sticky='w', pady=2)
-        ttk.Combobox(
-            quality_frame,
-            textvariable=self.video_quality_var,
-            state='readonly',
-            values=list(VIDEO_HEIGHT_MAP.keys()),
-        ).grid(row=0, column=3, sticky='ew', padx=(6, 0), pady=2)
-
-        ttk.Label(quality_frame, text='Audio quality:').grid(row=1, column=0, sticky='w', pady=2)
-        ttk.Combobox(
-            quality_frame,
-            textvariable=self.audio_quality_var,
-            state='readonly',
-            values=list(AUDIO_ABR_MAP.keys()),
-        ).grid(row=1, column=1, sticky='ew', padx=(6, 12), pady=2)
-
-        ttk.Label(quality_frame, text='Audio format:').grid(row=1, column=2, sticky='w', pady=2)
-        ttk.Combobox(
-            quality_frame,
-            textvariable=self.audio_format_var,
-            state='readonly',
-            values=['mp3', 'm4a', 'aac', 'opus', 'vorbis', 'wav'],
-        ).grid(row=1, column=3, sticky='ew', padx=(6, 0), pady=2)
-
-        manual_frame = ttk.Frame(main)
-        manual_frame.grid(row=5, column=0, columnspan=2, sticky='ew', pady=(0, 6))
-        manual_frame.columnconfigure(1, weight=1)
-        ttk.Checkbutton(manual_frame, text='Use manual format expression (-f)', variable=self.manual_format_var).grid(
-            row=0, column=0, sticky='w', padx=(0, 8)
-        )
-        ttk.Entry(manual_frame, textvariable=self.format_var).grid(row=0, column=1, sticky='ew')
-
-        options = ttk.LabelFrame(main, text='Common options', padding=10)
-        options.grid(row=6, column=0, columnspan=2, sticky='ew', pady=(8, 6))
-        options.columnconfigure(0, weight=1)
-        options.columnconfigure(1, weight=1)
-
-        ttk.Checkbutton(options, text='Download playlist', variable=self.playlist_var).grid(
-            row=0, column=0, sticky='w', padx=(0, 12), pady=2
-        )
-        ttk.Checkbutton(options, text='Embed subtitles', variable=self.embed_subs_var).grid(
-            row=0, column=1, sticky='w', pady=2
-        )
-        ttk.Checkbutton(options, text='Write thumbnail', variable=self.write_thumbnail_var).grid(
-            row=1, column=0, sticky='w', padx=(0, 12), pady=2
-        )
-
-        ttk.Label(main, text='Cookies from browser:').grid(row=7, column=0, sticky='w', pady=(0, 6))
-        ttk.Combobox(
-            main,
-            textvariable=self.cookies_browser_var,
-            state='readonly',
-            values=['', 'chrome', 'firefox', 'edge', 'brave', 'opera', 'vivaldi'],
-        ).grid(row=7, column=1, sticky='ew', pady=(0, 6))
-
-        ttk.Label(main, text='Custom arguments:').grid(row=8, column=0, sticky='w', pady=(0, 6))
-        ttk.Entry(main, textvariable=self.custom_args_var).grid(row=8, column=1, sticky='ew', pady=(0, 6))
-
-        command_frame = ttk.LabelFrame(main, text='Generated command preview', padding=10)
-        command_frame.grid(row=9, column=0, columnspan=2, sticky='ew', pady=(8, 6))
-        command_frame.columnconfigure(0, weight=1)
-        self.command_preview = tk.Text(command_frame, height=3, wrap='word')
-        self.command_preview.grid(row=0, column=0, sticky='ew')
-        self.command_preview.configure(state='disabled')
-
-        buttons = ttk.Frame(main)
-        buttons.grid(row=10, column=0, columnspan=2, sticky='ew', pady=(8, 6))
-        for col in range(4):
-            buttons.columnconfigure(col, weight=1)
-
-        self.run_button = ttk.Button(buttons, text='Start Download', command=self.start_download)
-        self.run_button.grid(row=0, column=0, sticky='ew', padx=(0, 6))
-        self.stop_button = ttk.Button(buttons, text='Stop', command=self.stop_download, state='disabled')
-        self.stop_button.grid(row=0, column=1, sticky='ew', padx=6)
-        ttk.Button(buttons, text='Clear Log', command=self.clear_log).grid(row=0, column=2, sticky='ew', padx=6)
-        ttk.Button(buttons, text='Reset to default', command=self._reset_fields).grid(row=0, column=3, sticky='ew', padx=(6, 0))
-
-        self.progress = ttk.Progressbar(main, mode='determinate', maximum=100)
-        self.progress.grid(row=11, column=0, columnspan=2, sticky='ew', pady=(0, 6))
-        ttk.Label(main, textvariable=self.status_var).grid(row=12, column=0, columnspan=2, sticky='w', pady=(0, 4))
-
-        ttk.Label(main, text='Output log:').grid(row=13, column=0, sticky='nw', pady=(0, 6))
-        self.log_text = tk.Text(main, wrap='word')
-        self.log_text.grid(row=14, column=0, columnspan=2, sticky='nsew')
+        self._build_topbar()
+        self._build_left_column()
+        self._build_right_column()
 
         for variable in (
+            self.theme_var,
             self.dest_var,
             self.filename_var,
             self.format_var,
@@ -223,6 +135,228 @@ class YtDlpGUI:
             variable.trace_add('write', lambda *_: self.update_preview())
 
         self.update_preview()
+
+    def _build_topbar(self) -> None:
+        bar = ttk.Frame(self.main, style='Glass.TFrame', padding=(18, 12))
+        bar.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 14))
+        bar.columnconfigure(1, weight=1)
+
+        ttk.Label(bar, text='yt-dlp Studio', style='Title.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(bar, text='Modern download experience for power users', style='Subtitle.TLabel').grid(
+            row=1, column=0, sticky='w', pady=(2, 0)
+        )
+
+        actions = ttk.Frame(bar, style='Glass.TFrame')
+        actions.grid(row=0, column=2, rowspan=2, sticky='e')
+        ttk.Label(actions, text='Theme', style='Tiny.TLabel').grid(row=0, column=0, sticky='e', padx=(0, 8))
+        ttk.Combobox(actions, textvariable=self.theme_var, state='readonly', values=['dark', 'light'], width=10).grid(
+            row=0, column=1, sticky='e'
+        )
+
+    def _build_left_column(self) -> None:
+        left = ttk.Frame(self.main, style='App.TFrame')
+        left.grid(row=1, column=0, rowspan=2, sticky='nsew', padx=(0, 12))
+        left.columnconfigure(0, weight=1)
+        left.rowconfigure(5, weight=1)
+
+        source_card = ttk.LabelFrame(left, text='Source', style='Card.TLabelframe', padding=14)
+        source_card.grid(row=0, column=0, sticky='ew', pady=(0, 10))
+        source_card.columnconfigure(1, weight=1)
+
+        ttk.Label(source_card, text='Preset', style='Field.TLabel').grid(row=0, column=0, sticky='w', pady=3)
+        preset_frame = ttk.Frame(source_card, style='CardInner.TFrame')
+        preset_frame.grid(row=0, column=1, sticky='ew', pady=3)
+        preset_frame.columnconfigure(0, weight=1)
+        self.preset_combo = ttk.Combobox(
+            preset_frame,
+            textvariable=self.preset_var,
+            state='readonly',
+            values=['custom', 'best-video', 'audio-mp3', 'subtitles-only', 'thumbnail-only'],
+        )
+        self.preset_combo.grid(row=0, column=0, sticky='ew')
+        self.preset_combo.bind('<<ComboboxSelected>>', self._apply_preset)
+        ttk.Button(preset_frame, text='Save defaults', style='Subtle.TButton', command=self._save_config).grid(
+            row=0, column=1, padx=(8, 0)
+        )
+
+        ttk.Label(source_card, text='URLs', style='Field.TLabel').grid(row=1, column=0, sticky='nw', pady=(8, 3))
+        self.urls_text = tk.Text(source_card, height=5, wrap='word', relief='flat', padx=10, pady=10)
+        self.urls_text.grid(row=1, column=1, sticky='ew', pady=(8, 3))
+        self.urls_text.bind('<KeyRelease>', lambda *_: self.update_preview())
+
+        destination_card = ttk.LabelFrame(left, text='Destination', style='Card.TLabelframe', padding=14)
+        destination_card.grid(row=1, column=0, sticky='ew', pady=(0, 10))
+        destination_card.columnconfigure(1, weight=1)
+
+        ttk.Label(destination_card, text='Folder', style='Field.TLabel').grid(row=0, column=0, sticky='w', pady=3)
+        folder_frame = ttk.Frame(destination_card, style='CardInner.TFrame')
+        folder_frame.grid(row=0, column=1, sticky='ew', pady=3)
+        folder_frame.columnconfigure(0, weight=1)
+        ttk.Entry(folder_frame, textvariable=self.dest_var).grid(row=0, column=0, sticky='ew')
+        ttk.Button(folder_frame, text='Browse', style='Subtle.TButton', command=self._browse_dest).grid(
+            row=0, column=1, padx=(8, 0)
+        )
+
+        ttk.Label(destination_card, text='Filename template', style='Field.TLabel').grid(row=1, column=0, sticky='w', pady=3)
+        ttk.Entry(destination_card, textvariable=self.filename_var).grid(row=1, column=1, sticky='ew', pady=3)
+
+        quality_card = ttk.LabelFrame(left, text='Quality & Formats', style='Card.TLabelframe', padding=14)
+        quality_card.grid(row=2, column=0, sticky='ew', pady=(0, 10))
+        quality_card.columnconfigure(1, weight=1)
+        quality_card.columnconfigure(3, weight=1)
+
+        ttk.Label(quality_card, text='Download mode', style='Field.TLabel').grid(row=0, column=0, sticky='w', pady=4)
+        ttk.Combobox(
+            quality_card,
+            textvariable=self.media_mode_var,
+            state='readonly',
+            values=['video+audio', 'video-only', 'audio-only'],
+        ).grid(row=0, column=1, sticky='ew', padx=(8, 12), pady=4)
+
+        ttk.Label(quality_card, text='Video quality', style='Field.TLabel').grid(row=0, column=2, sticky='w', pady=4)
+        ttk.Combobox(
+            quality_card,
+            textvariable=self.video_quality_var,
+            state='readonly',
+            values=list(VIDEO_HEIGHT_MAP.keys()),
+        ).grid(row=0, column=3, sticky='ew', padx=(8, 0), pady=4)
+
+        ttk.Label(quality_card, text='Audio quality', style='Field.TLabel').grid(row=1, column=0, sticky='w', pady=4)
+        ttk.Combobox(
+            quality_card,
+            textvariable=self.audio_quality_var,
+            state='readonly',
+            values=list(AUDIO_ABR_MAP.keys()),
+        ).grid(row=1, column=1, sticky='ew', padx=(8, 12), pady=4)
+
+        ttk.Label(quality_card, text='Audio format', style='Field.TLabel').grid(row=1, column=2, sticky='w', pady=4)
+        ttk.Combobox(
+            quality_card,
+            textvariable=self.audio_format_var,
+            state='readonly',
+            values=['mp3', 'm4a', 'aac', 'opus', 'vorbis', 'wav'],
+        ).grid(row=1, column=3, sticky='ew', padx=(8, 0), pady=4)
+
+        ttk.Checkbutton(
+            quality_card, text='Manual format override (-f)', style='Switch.TCheckbutton', variable=self.manual_format_var
+        ).grid(row=2, column=0, sticky='w', pady=(8, 4))
+        ttk.Entry(quality_card, textvariable=self.format_var).grid(row=2, column=1, columnspan=3, sticky='ew', pady=(8, 4))
+
+        options_card = ttk.LabelFrame(left, text='Advanced Options', style='Card.TLabelframe', padding=14)
+        options_card.grid(row=3, column=0, sticky='ew', pady=(0, 10))
+        options_card.columnconfigure(1, weight=1)
+
+        check_row = ttk.Frame(options_card, style='CardInner.TFrame')
+        check_row.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 6))
+        ttk.Checkbutton(check_row, text='Download playlist', style='Switch.TCheckbutton', variable=self.playlist_var).pack(
+            side='left', padx=(0, 18)
+        )
+        ttk.Checkbutton(check_row, text='Embed subtitles', style='Switch.TCheckbutton', variable=self.embed_subs_var).pack(
+            side='left', padx=(0, 18)
+        )
+        ttk.Checkbutton(check_row, text='Write thumbnail', style='Switch.TCheckbutton', variable=self.write_thumbnail_var).pack(
+            side='left'
+        )
+
+        ttk.Label(options_card, text='Cookies browser', style='Field.TLabel').grid(row=1, column=0, sticky='w', pady=4)
+        ttk.Combobox(
+            options_card,
+            textvariable=self.cookies_browser_var,
+            state='readonly',
+            values=['', 'chrome', 'firefox', 'edge', 'brave', 'opera', 'vivaldi'],
+        ).grid(row=1, column=1, sticky='ew', pady=4)
+
+        ttk.Label(options_card, text='Custom arguments', style='Field.TLabel').grid(row=2, column=0, sticky='w', pady=4)
+        ttk.Entry(options_card, textvariable=self.custom_args_var).grid(row=2, column=1, sticky='ew', pady=4)
+
+        preview_card = ttk.LabelFrame(left, text='Command Preview', style='Card.TLabelframe', padding=14)
+        preview_card.grid(row=4, column=0, sticky='nsew')
+        preview_card.columnconfigure(0, weight=1)
+        preview_card.rowconfigure(0, weight=1)
+        self.command_preview = tk.Text(preview_card, height=4, wrap='word', relief='flat', padx=10, pady=10)
+        self.command_preview.grid(row=0, column=0, sticky='nsew')
+        self.command_preview.configure(state='disabled')
+
+    def _build_right_column(self) -> None:
+        right = ttk.Frame(self.main, style='App.TFrame')
+        right.grid(row=1, column=1, rowspan=2, sticky='nsew')
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(2, weight=1)
+
+        action_card = ttk.LabelFrame(right, text='Actions', style='Card.TLabelframe', padding=14)
+        action_card.grid(row=0, column=0, sticky='ew', pady=(0, 10))
+        action_card.columnconfigure(0, weight=1)
+        action_card.columnconfigure(1, weight=1)
+        action_card.columnconfigure(2, weight=1)
+
+        self.run_button = ttk.Button(action_card, text='Start Download', style='Accent.TButton', command=self.start_download)
+        self.run_button.grid(row=0, column=0, sticky='ew', padx=(0, 6))
+        self.stop_button = ttk.Button(action_card, text='Stop', style='Danger.TButton', command=self.stop_download, state='disabled')
+        self.stop_button.grid(row=0, column=1, sticky='ew', padx=6)
+        ttk.Button(action_card, text='Clear Log', style='Subtle.TButton', command=self.clear_log).grid(
+            row=0, column=2, sticky='ew', padx=(6, 0)
+        )
+        ttk.Button(action_card, text='Reset', style='Subtle.TButton', command=self._reset_fields).grid(
+            row=1, column=0, columnspan=3, sticky='ew', pady=(8, 0)
+        )
+
+        status_card = ttk.LabelFrame(right, text='Progress', style='Card.TLabelframe', padding=14)
+        status_card.grid(row=1, column=0, sticky='ew', pady=(0, 10))
+        status_card.columnconfigure(0, weight=1)
+
+        self.progress = ttk.Progressbar(status_card, mode='determinate', maximum=100, style='Modern.Horizontal.TProgressbar')
+        self.progress.grid(row=0, column=0, sticky='ew')
+        ttk.Label(status_card, textvariable=self.status_var, style='Tiny.TLabel').grid(row=1, column=0, sticky='w', pady=(8, 0))
+
+        log_card = ttk.LabelFrame(right, text='Live Log', style='Card.TLabelframe', padding=14)
+        log_card.grid(row=2, column=0, sticky='nsew')
+        log_card.columnconfigure(0, weight=1)
+        log_card.rowconfigure(0, weight=1)
+
+        self.log_text = tk.Text(log_card, wrap='word', relief='flat', padx=10, pady=10)
+        self.log_text.grid(row=0, column=0, sticky='nsew')
+
+    def _apply_theme(self) -> None:
+        palette = THEMES[self.theme_var.get()]
+
+        self.root.configure(bg=palette['bg'])
+        self.style.configure('App.TFrame', background=palette['bg'])
+        self.style.configure('Glass.TFrame', background=palette['panel'])
+        self.style.configure('CardInner.TFrame', background=palette['panel'])
+
+        self.style.configure('Title.TLabel', background=palette['panel'], foreground=palette['text'], font=('Segoe UI Semibold', 18))
+        self.style.configure('Subtitle.TLabel', background=palette['panel'], foreground=palette['muted'], font=('Segoe UI', 10))
+        self.style.configure('Tiny.TLabel', background=palette['panel'], foreground=palette['muted'], font=('Segoe UI', 9))
+        self.style.configure('Field.TLabel', background=palette['panel'], foreground=palette['muted'], font=('Segoe UI', 10))
+
+        self.style.configure('Card.TLabelframe', background=palette['panel'], foreground=palette['text'])
+        self.style.configure('Card.TLabelframe.Label', background=palette['panel'], foreground=palette['text'], font=('Segoe UI Semibold', 10))
+
+        self.style.configure('TEntry', fieldbackground=palette['input'], foreground=palette['text'], insertcolor=palette['text'])
+        self.style.configure('TCombobox', fieldbackground=palette['input'], background=palette['panel_alt'], foreground=palette['text'])
+
+        self.style.configure('Accent.TButton', font=('Segoe UI Semibold', 10), background=palette['accent'], foreground='white', borderwidth=0)
+        self.style.map('Accent.TButton', background=[('active', palette['accent'])])
+
+        self.style.configure('Danger.TButton', font=('Segoe UI Semibold', 10), background=palette['danger'], foreground='white', borderwidth=0)
+        self.style.map('Danger.TButton', background=[('active', palette['danger'])])
+
+        self.style.configure('Subtle.TButton', font=('Segoe UI', 10), background=palette['accent_soft'], foreground=palette['text'])
+
+        self.style.configure('Switch.TCheckbutton', background=palette['panel'], foreground=palette['text'])
+
+        self.style.configure(
+            'Modern.Horizontal.TProgressbar',
+            troughcolor=palette['panel_alt'],
+            background=palette['success'],
+            bordercolor=palette['panel_alt'],
+            lightcolor=palette['success'],
+            darkcolor=palette['success'],
+        )
+
+        text_widgets = [self.urls_text, self.command_preview, self.log_text]
+        for widget in text_widgets:
+            widget.configure(bg=palette['input'], fg=palette['text'], insertbackground=palette['text'])
 
     def _get_urls(self) -> list[str]:
         return [line.strip() for line in self.urls_text.get('1.0', tk.END).splitlines() if line.strip()]
@@ -276,6 +410,7 @@ class YtDlpGUI:
 
     def _save_config(self) -> None:
         data = {
+            'theme': self.theme_var.get(),
             'dest': self.dest_var.get(),
             'filename': self.filename_var.get(),
             'manual_format': self.manual_format_var.get(),
@@ -305,6 +440,7 @@ class YtDlpGUI:
         except (OSError, json.JSONDecodeError):
             return
 
+        self.theme_var.set(data.get('theme', self.theme_var.get()))
         self.dest_var.set(data.get('dest', self.dest_var.get()))
         self.filename_var.set(data.get('filename', self.filename_var.get()))
         self.manual_format_var.set(bool(data.get('manual_format', self.manual_format_var.get())))
@@ -379,6 +515,7 @@ class YtDlpGUI:
         return command
 
     def update_preview(self) -> None:
+        self._apply_theme()
         command = self.build_command(include_urls=False)
         preview = subprocess.list2cmdline(command + ['<URL ...>'])
         self.command_preview.configure(state='normal')
@@ -466,9 +603,6 @@ class YtDlpGUI:
 
 def main() -> None:
     root = tk.Tk()
-    style = ttk.Style(root)
-    if 'vista' in style.theme_names():
-        style.theme_use('vista')
     YtDlpGUI(root)
     root.mainloop()
 

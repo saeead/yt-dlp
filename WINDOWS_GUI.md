@@ -1,4 +1,4 @@
-# yt-dlp Studio Pro (Modern Windows GUI)
+# Saeid YT Downloader Pro (Modern Windows GUI)
 
 This repository includes a redesigned GUI at `yt_dlp_gui.py` with a more premium, design-system-inspired experience.
 
@@ -17,6 +17,8 @@ python yt_dlp_gui.py
 - Live theme switching (`dark` / `light`)
 - High-contrast selected values in dropdowns for better readability
 - Dedicated URL `Paste` button + right-click context menu Paste
+- App window title renamed to `Saeid YT Downloader Pro`
+- Uses repository icon (`devscripts/logo.ico`) when available
 - Styled action buttons, command preview, progress, and log panel
 
 ## Features

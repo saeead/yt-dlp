@@ -72,7 +72,7 @@ THEMES = {
 class YtDlpGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title('yt-dlp Studio Pro')
+        self.root.title('Saeid YT Downloader Pro')
         self.root.geometry('1240x860')
         self.root.minsize(1040, 720)
 
@@ -101,6 +101,13 @@ class YtDlpGUI:
         self.style = ttk.Style(self.root)
         if 'vista' in self.style.theme_names():
             self.style.theme_use('vista')
+
+        icon_path = Path(__file__).resolve().parent / 'devscripts' / 'logo.ico'
+        if icon_path.exists():
+            try:
+                self.root.iconbitmap(default=str(icon_path))
+            except tk.TclError:
+                pass
 
         self._build_ui()
         self._load_config()
@@ -166,7 +173,7 @@ class YtDlpGUI:
         bar.grid(row=0, column=0, sticky='ew', pady=(0, 10))
         bar.columnconfigure(1, weight=1)
 
-        ttk.Label(bar, text='yt-dlp Studio Pro', style='Title.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Label(bar, text='Saeid YT Downloader Pro', style='Title.TLabel').grid(row=0, column=0, sticky='w')
         ttk.Label(
             bar,
             text='Design-system inspired layout • fast workflows • pro controls',
@@ -376,12 +383,30 @@ class YtDlpGUI:
             selectbackground=[('readonly', selected_bg)],
             selectforeground=[('readonly', selected_fg)],
         )
+        self.root.option_add('*TCombobox*Listbox.background', selected_bg)
+        self.root.option_add('*TCombobox*Listbox.foreground', selected_fg)
+        self.root.option_add('*TCombobox*Listbox.selectBackground', p['accent'])
+        self.root.option_add('*TCombobox*Listbox.selectForeground', '#FFFFFF')
+        self.root.option_add('*TCombobox*Listbox.font', 'Segoe UI 10')
 
         self.style.configure('Accent.TButton', font=('Segoe UI Semibold', 10), background=p['accent'], foreground='white', borderwidth=0)
-        self.style.map('Accent.TButton', background=[('active', p['accent'])])
+        self.style.map(
+            'Accent.TButton',
+            background=[('disabled', p['panel_soft']), ('active', p['accent'])],
+            foreground=[('disabled', p['muted']), ('active', '#FFFFFF')],
+        )
         self.style.configure('Danger.TButton', font=('Segoe UI Semibold', 10), background=p['danger'], foreground='white', borderwidth=0)
-        self.style.map('Danger.TButton', background=[('active', p['danger'])])
+        self.style.map(
+            'Danger.TButton',
+            background=[('disabled', p['panel_soft']), ('active', p['danger'])],
+            foreground=[('disabled', p['muted']), ('active', '#FFFFFF')],
+        )
         self.style.configure('Subtle.TButton', font=('Segoe UI', 10), background=p['accent_soft'], foreground=p['text'])
+        self.style.map(
+            'Subtle.TButton',
+            background=[('disabled', p['panel_soft']), ('active', p['accent_soft'])],
+            foreground=[('disabled', p['muted']), ('active', p['text'])],
+        )
         self.style.configure('Switch.TCheckbutton', background=p['panel'], foreground=p['text'])
 
         self.style.configure(

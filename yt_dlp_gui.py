@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 import queue
 import re
@@ -39,6 +40,19 @@ AUDIO_ABR_MAP = {
     'worst': 'worst',
 }
 
+
+
+def _enable_windows_dpi_awareness() -> None:
+    if not sys.platform.startswith('win'):
+        return
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
 THEMES = {
     'dark': {
         'bg': '#0A0F1C',
@@ -72,9 +86,14 @@ THEMES = {
 class YtDlpGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
+        _enable_windows_dpi_awareness()
         self.root.title('Saeid YT Downloader Pro')
         self.root.geometry('1240x860')
         self.root.minsize(1040, 720)
+        try:
+            self.root.state('zoomed')
+        except tk.TclError:
+            self.root.attributes('-zoomed', True)
 
         self.process: subprocess.Popen[str] | None = None
         self.output_queue: queue.Queue[str] = queue.Queue()
@@ -151,6 +170,7 @@ class YtDlpGUI:
         self.left = ttk.Frame(content, style='App.TFrame')
         self.left.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
         self.left.columnconfigure(0, weight=1)
+        self.left.rowconfigure(4, weight=1)
         self.left.rowconfigure(5, weight=1)
 
         self.right = ttk.Frame(content, style='App.TFrame')
@@ -219,7 +239,7 @@ class YtDlpGUI:
         ttk.Label(hdr, text='URLs', style='Field.TLabel').pack(side='left')
         ttk.Button(hdr, text='Paste', style='Subtle.TButton', command=self._paste_urls).pack(side='left', padx=(8, 0))
 
-        self.urls_text = tk.Text(card, height=5, wrap='word', relief='flat', padx=10, pady=10)
+        self.urls_text = tk.Text(card, height=6, wrap='word', relief='flat', padx=10, pady=10, font=('Segoe UI', 11))
         self.urls_text.grid(row=1, column=1, sticky='ew')
         self.urls_text.bind('<KeyRelease>', lambda *_: self.update_preview())
         self.urls_text.bind('<Button-3>', self._show_urls_context_menu)
@@ -314,7 +334,7 @@ class YtDlpGUI:
         card.grid(row=4, column=0, sticky='nsew')
         card.columnconfigure(0, weight=1)
         card.rowconfigure(0, weight=1)
-        self.command_preview = tk.Text(card, height=5, wrap='word', relief='flat', padx=10, pady=10)
+        self.command_preview = tk.Text(card, height=6, wrap='word', relief='flat', padx=10, pady=10, font=('Consolas', 11))
         self.command_preview.grid(row=0, column=0, sticky='nsew')
         self.command_preview.configure(state='disabled')
 
@@ -346,7 +366,7 @@ class YtDlpGUI:
         card.columnconfigure(0, weight=1)
         card.rowconfigure(0, weight=1)
 
-        self.log_text = tk.Text(card, wrap='word', relief='flat', padx=10, pady=10)
+        self.log_text = tk.Text(card, wrap='word', relief='flat', padx=10, pady=10, font=('Consolas', 11))
         self.log_text.grid(row=0, column=0, sticky='nsew')
 
     def _apply_theme(self) -> None:
@@ -359,13 +379,13 @@ class YtDlpGUI:
         self.style.configure('Glass.TFrame', background=p['panel'])
         self.style.configure('CardInner.TFrame', background=p['panel'])
 
-        self.style.configure('Title.TLabel', background=p['panel'], foreground=p['text'], font=('Segoe UI Semibold', 20))
-        self.style.configure('Subtitle.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 10))
-        self.style.configure('Tiny.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 9))
-        self.style.configure('Field.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 10))
+        self.style.configure('Title.TLabel', background=p['panel'], foreground=p['text'], font=('Segoe UI Semibold', 24))
+        self.style.configure('Subtitle.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 12))
+        self.style.configure('Tiny.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 11))
+        self.style.configure('Field.TLabel', background=p['panel'], foreground=p['muted'], font=('Segoe UI', 12))
 
         self.style.configure('Card.TLabelframe', background=p['panel'], foreground=p['text'])
-        self.style.configure('Card.TLabelframe.Label', background=p['panel'], foreground=p['text'], font=('Segoe UI Semibold', 10))
+        self.style.configure('Card.TLabelframe.Label', background=p['panel'], foreground=p['text'], font=('Segoe UI Semibold', 12))
 
         self.style.configure('TEntry', fieldbackground=p['input'], foreground=p['text'], insertcolor=p['text'])
         self.style.configure('TCombobox', fieldbackground=p['input'], background=p['panel_alt'], foreground=p['text'])
@@ -375,6 +395,7 @@ class YtDlpGUI:
             background=selected_bg,
             foreground=selected_fg,
             arrowcolor=selected_fg,
+            font=('Segoe UI', 11),
         )
         self.style.map(
             'Selected.TCombobox',
@@ -382,30 +403,27 @@ class YtDlpGUI:
             foreground=[('readonly', selected_fg)],
             selectbackground=[('readonly', selected_bg)],
             selectforeground=[('readonly', selected_fg)],
+            background=[('readonly', selected_bg)],
+            arrowcolor=[('readonly', selected_fg)],
         )
-        self.root.option_add('*TCombobox*Listbox.background', selected_bg)
-        self.root.option_add('*TCombobox*Listbox.foreground', selected_fg)
-        self.root.option_add('*TCombobox*Listbox.selectBackground', p['accent'])
-        self.root.option_add('*TCombobox*Listbox.selectForeground', '#FFFFFF')
-        self.root.option_add('*TCombobox*Listbox.font', 'Segoe UI 10')
 
-        self.style.configure('Accent.TButton', font=('Segoe UI Semibold', 10), background=p['accent'], foreground='white', borderwidth=0)
+        self.style.configure('Accent.TButton', font=('Segoe UI Semibold', 11), background=p['accent'], foreground='white', borderwidth=0, padding=(8, 6))
         self.style.map(
             'Accent.TButton',
-            background=[('disabled', p['panel_soft']), ('active', p['accent'])],
-            foreground=[('disabled', p['muted']), ('active', '#FFFFFF')],
+            background=[('disabled', p['panel_soft']), ('active', p['accent']), ('!disabled', p['accent'])],
+            foreground=[('disabled', p['muted']), ('active', '#FFFFFF'), ('!disabled', '#FFFFFF')],
         )
-        self.style.configure('Danger.TButton', font=('Segoe UI Semibold', 10), background=p['danger'], foreground='white', borderwidth=0)
+        self.style.configure('Danger.TButton', font=('Segoe UI Semibold', 11), background=p['danger'], foreground='white', borderwidth=0, padding=(8, 6))
         self.style.map(
             'Danger.TButton',
-            background=[('disabled', p['panel_soft']), ('active', p['danger'])],
-            foreground=[('disabled', p['muted']), ('active', '#FFFFFF')],
+            background=[('disabled', p['panel_soft']), ('active', p['danger']), ('!disabled', p['danger'])],
+            foreground=[('disabled', p['muted']), ('active', '#FFFFFF'), ('!disabled', '#FFFFFF')],
         )
-        self.style.configure('Subtle.TButton', font=('Segoe UI', 10), background=p['accent_soft'], foreground=p['text'])
+        self.style.configure('Subtle.TButton', font=('Segoe UI Semibold', 10), background=p['accent_soft'], foreground=p['text'], padding=(8, 6))
         self.style.map(
             'Subtle.TButton',
-            background=[('disabled', p['panel_soft']), ('active', p['accent_soft'])],
-            foreground=[('disabled', p['muted']), ('active', p['text'])],
+            background=[('disabled', p['panel_soft']), ('active', p['accent_soft']), ('!disabled', p['accent_soft'])],
+            foreground=[('disabled', p['muted']), ('active', p['text']), ('!disabled', p['text'])],
         )
         self.style.configure('Switch.TCheckbutton', background=p['panel'], foreground=p['text'])
 

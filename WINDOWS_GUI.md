@@ -13,6 +13,7 @@ python yt_dlp_gui.py
 ## UI/UX highlights
 
 - Modern dashboard layout with clean visual hierarchy
+- Opens maximized on launch (Windows fullscreen-like `zoomed` state)
 - Card-based sections with glass-like aesthetic and soft contrast
 - Live theme switching (`dark` / `light`)
 - High-contrast selected values in dropdowns for better readability
@@ -42,3 +43,4 @@ python yt_dlp_gui.py
 - The GUI runs `yt-dlp` using: `python -m yt_dlp`.
 - Theme choice is persisted in config defaults.
 - Quality selectors auto-build `-f` when manual override is disabled.
+- Windows DPI-awareness is enabled for sharper text/UI scaling on high-resolution displays.

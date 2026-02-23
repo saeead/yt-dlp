@@ -15,12 +15,14 @@ python yt_dlp_gui.py
 - Modern two-column dashboard layout
 - Card-style sections (glass-like look)
 - Theme switcher (`dark` / `light`)
+- Higher-contrast selected values in mode/quality/theme selectors
 - Accent action buttons and styled progress bar
 - Live command preview and download logs
 
 ## Features
 
 - Multi-URL input (one URL per line)
+- URL box supports right-click context menu and a dedicated `Paste` button
 - Presets (`custom`, `best-video`, `audio-mp3`, `subtitles-only`, `thumbnail-only`)
 - Destination picker and filename template
 - Quality selectors:

@@ -149,9 +149,14 @@ class YtDlpGUI:
         actions = ttk.Frame(bar, style='Glass.TFrame')
         actions.grid(row=0, column=2, rowspan=2, sticky='e')
         ttk.Label(actions, text='Theme', style='Tiny.TLabel').grid(row=0, column=0, sticky='e', padx=(0, 8))
-        ttk.Combobox(actions, textvariable=self.theme_var, state='readonly', values=['dark', 'light'], width=10).grid(
-            row=0, column=1, sticky='e'
-        )
+        ttk.Combobox(
+            actions,
+            textvariable=self.theme_var,
+            state='readonly',
+            values=['dark', 'light'],
+            width=10,
+            style='Selected.TCombobox',
+        ).grid(row=0, column=1, sticky='e')
 
     def _build_left_column(self) -> None:
         left = ttk.Frame(self.main, style='App.TFrame')
@@ -172,6 +177,7 @@ class YtDlpGUI:
             textvariable=self.preset_var,
             state='readonly',
             values=['custom', 'best-video', 'audio-mp3', 'subtitles-only', 'thumbnail-only'],
+            style='Selected.TCombobox',
         )
         self.preset_combo.grid(row=0, column=0, sticky='ew')
         self.preset_combo.bind('<<ComboboxSelected>>', self._apply_preset)
@@ -179,10 +185,15 @@ class YtDlpGUI:
             row=0, column=1, padx=(8, 0)
         )
 
-        ttk.Label(source_card, text='URLs', style='Field.TLabel').grid(row=1, column=0, sticky='nw', pady=(8, 3))
+        urls_header = ttk.Frame(source_card, style='CardInner.TFrame')
+        urls_header.grid(row=1, column=0, sticky='nw', pady=(8, 3))
+        ttk.Label(urls_header, text='URLs', style='Field.TLabel').pack(side='left')
+        ttk.Button(urls_header, text='Paste', style='Subtle.TButton', command=self._paste_urls).pack(side='left', padx=(8, 0))
+
         self.urls_text = tk.Text(source_card, height=5, wrap='word', relief='flat', padx=10, pady=10)
         self.urls_text.grid(row=1, column=1, sticky='ew', pady=(8, 3))
         self.urls_text.bind('<KeyRelease>', lambda *_: self.update_preview())
+        self.urls_text.bind('<Button-3>', self._show_urls_context_menu)
 
         destination_card = ttk.LabelFrame(left, text='Destination', style='Card.TLabelframe', padding=14)
         destination_card.grid(row=1, column=0, sticky='ew', pady=(0, 10))
@@ -211,6 +222,7 @@ class YtDlpGUI:
             textvariable=self.media_mode_var,
             state='readonly',
             values=['video+audio', 'video-only', 'audio-only'],
+            style='Selected.TCombobox',
         ).grid(row=0, column=1, sticky='ew', padx=(8, 12), pady=4)
 
         ttk.Label(quality_card, text='Video quality', style='Field.TLabel').grid(row=0, column=2, sticky='w', pady=4)
@@ -219,6 +231,7 @@ class YtDlpGUI:
             textvariable=self.video_quality_var,
             state='readonly',
             values=list(VIDEO_HEIGHT_MAP.keys()),
+            style='Selected.TCombobox',
         ).grid(row=0, column=3, sticky='ew', padx=(8, 0), pady=4)
 
         ttk.Label(quality_card, text='Audio quality', style='Field.TLabel').grid(row=1, column=0, sticky='w', pady=4)
@@ -227,6 +240,7 @@ class YtDlpGUI:
             textvariable=self.audio_quality_var,
             state='readonly',
             values=list(AUDIO_ABR_MAP.keys()),
+            style='Selected.TCombobox',
         ).grid(row=1, column=1, sticky='ew', padx=(8, 12), pady=4)
 
         ttk.Label(quality_card, text='Audio format', style='Field.TLabel').grid(row=1, column=2, sticky='w', pady=4)
@@ -235,6 +249,7 @@ class YtDlpGUI:
             textvariable=self.audio_format_var,
             state='readonly',
             values=['mp3', 'm4a', 'aac', 'opus', 'vorbis', 'wav'],
+            style='Selected.TCombobox',
         ).grid(row=1, column=3, sticky='ew', padx=(8, 0), pady=4)
 
         ttk.Checkbutton(
@@ -264,6 +279,7 @@ class YtDlpGUI:
             textvariable=self.cookies_browser_var,
             state='readonly',
             values=['', 'chrome', 'firefox', 'edge', 'brave', 'opera', 'vivaldi'],
+            style='Selected.TCombobox',
         ).grid(row=1, column=1, sticky='ew', pady=4)
 
         ttk.Label(options_card, text='Custom arguments', style='Field.TLabel').grid(row=2, column=0, sticky='w', pady=4)
@@ -318,6 +334,8 @@ class YtDlpGUI:
 
     def _apply_theme(self) -> None:
         palette = THEMES[self.theme_var.get()]
+        selected_bg = '#ffffff'
+        selected_fg = '#101828'
 
         self.root.configure(bg=palette['bg'])
         self.style.configure('App.TFrame', background=palette['bg'])
@@ -334,6 +352,20 @@ class YtDlpGUI:
 
         self.style.configure('TEntry', fieldbackground=palette['input'], foreground=palette['text'], insertcolor=palette['text'])
         self.style.configure('TCombobox', fieldbackground=palette['input'], background=palette['panel_alt'], foreground=palette['text'])
+        self.style.configure(
+            'Selected.TCombobox',
+            fieldbackground=selected_bg,
+            background=selected_bg,
+            foreground=selected_fg,
+            arrowcolor=selected_fg,
+        )
+        self.style.map(
+            'Selected.TCombobox',
+            fieldbackground=[('readonly', selected_bg)],
+            foreground=[('readonly', selected_fg)],
+            selectbackground=[('readonly', selected_bg)],
+            selectforeground=[('readonly', selected_fg)],
+        )
 
         self.style.configure('Accent.TButton', font=('Segoe UI Semibold', 10), background=palette['accent'], foreground='white', borderwidth=0)
         self.style.map('Accent.TButton', background=[('active', palette['accent'])])
@@ -360,6 +392,24 @@ class YtDlpGUI:
 
     def _get_urls(self) -> list[str]:
         return [line.strip() for line in self.urls_text.get('1.0', tk.END).splitlines() if line.strip()]
+
+    def _paste_urls(self) -> None:
+        try:
+            clipboard_text = self.root.clipboard_get()
+        except tk.TclError:
+            return
+
+        if clipboard_text:
+            self.urls_text.insert(tk.INSERT, clipboard_text)
+            self.update_preview()
+
+    def _show_urls_context_menu(self, event: tk.Event[tk.Misc]) -> None:
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label='Paste', command=self._paste_urls)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
 
     def _browse_dest(self) -> None:
         selected = filedialog.askdirectory(initialdir=self.dest_var.get() or str(Path.cwd()))
